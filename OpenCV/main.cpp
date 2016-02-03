@@ -20,11 +20,13 @@ int main() {
         return -1;
     }
     
-    Mat grayFrames[2];  // Current(1) and previous(0) frames in grayscale
-    vector<Point2f> corners[2]; // Current(1) and previous(0) corners
+    bool drawLines = false;     // Whether to draw lines tracking each corner
     bool findCorners = false;   // Whether to find new corners
+    Mat grayFrames[2];          // Current(1) and previous(0) frames in grayscale
+    Mat lines;                  // Where to draw the lines
+    vector<Point2f> corners[2]; // Current(1) and previous(0) corners
     
-    // Loop indefinately
+    // Loop indefinitely
     while (true) {
         // Shift frames over
         if (!grayFrames[1].empty()) {
@@ -47,6 +49,10 @@ int main() {
         
         // Find corners if necessary
         if (findCorners) {
+            // Erase all lines
+            frame.copyTo(lines);
+            lines = Scalar(0, 0, 0, 0);
+            
             // Delete old corners
             corners[0].clear();
             corners[1].clear();
@@ -65,13 +71,29 @@ int main() {
             // Lucas-Kanade Pyramidal
             calcOpticalFlowPyrLK(grayFrames[0], grayFrames[1], corners[0], corners[1], status, err);
             
-            // Draw the corners
+            // Draw the corners and lines
             for (int i = 0; i < corners[1].size(); i++) {
                 // Proceed if the corner was found on the new frame
                 if (status[i]) {
-                    circle(frame, corners[1][i], 2, Scalar(0, 0, 255 ), -1, CV_AA );
+                    // Draw lines if necessary
+                    if (drawLines) {
+                        line(lines, corners[0][i], corners[1][i], Scalar(0, 0, 255), 1, CV_AA);
+                    }
+                    
+                    // Draw corners
+                    circle(frame, corners[1][i], 3, Scalar(0, 0, 255 ), -1, CV_AA );
                 }
             }
+        }
+        
+        // Add the lines to the frame if necessary
+        if (drawLines && !lines.empty()) {
+            Mat in;
+            frame.copyTo(in);
+            add(in, lines, frame);
+            
+            // Debug
+            cout << "Drawing lines!" << endl;
         }
         
         // Display the frame
@@ -82,8 +104,13 @@ int main() {
         if (keyStroke == 'q') {
             break;
         }
-        else if (keyStroke == ' ') {
-            findCorners = true;
+        switch (keyStroke) {
+                case ' ':
+                    findCorners = true;
+                    break;
+                case 'l':
+                    drawLines = !drawLines;
+                    break;
         }
     }
     
