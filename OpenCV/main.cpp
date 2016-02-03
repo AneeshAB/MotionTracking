@@ -11,85 +11,85 @@
 using namespace cv;
 using namespace std;
 
-vector<Point2f> findCorners(Mat input) {
-    // Find the corners
-    vector<Point2f> corners;
-    int maxCorners = 100;
-    double qualityLevel = 0.3;
-    double minDistance = 7;
-    int blockSize = 7;
-    goodFeaturesToTrack(input, corners, maxCorners, qualityLevel, minDistance, noArray(), blockSize);
-    
-    // Return the corners
-    return corners;
-}
-
-int main(int argc, const char * argv[]) {
-    VideoCapture webcam(0); // Webcam video feed
-    
-    // If unable to open webcam, terminate
+int main() {
+    // Open webcam
+    VideoCapture webcam;    // Webcam video feed
+    webcam.open(0);
     if (!webcam.isOpened()) {
-        cerr << "Unable to open webcam." << endl;
+        cerr << "Unable to open webcam" << endl;
         return -1;
     }
     
-    // Motion tracking variables
-    vector<Point2f> corners;    // Corners to track
-    Mat previousFrame;  // Previous frame for comparison for motion tracking
-    Mat grayPreviousFrame;  // Need grayscale for motion analysis
-    Mat currentFrame;   // Current frame to compare to previousFrame for motion tracking
-    Mat grayCurrentFrame;   // Need grayscale for motion analysis
+    Mat grayFrames[2];  // Current(1) and previous(0) frames in grayscale
+    vector<Point2f> corners[2]; // Current(1) and previous(0) corners
+    bool findCorners = false;   // Whether to find new corners
     
-    // Read a frame and find the corners
-    Mat initFrame;  // Initial frame from webcam
-    webcam.read(initFrame);
-    flip(initFrame, currentFrame, 1);
-    cvtColor(currentFrame, grayCurrentFrame, COLOR_BGR2GRAY);
-    corners = findCorners(grayCurrentFrame);
-    
-    // Initialize the line mask
-    Mat lineMask(currentFrame.rows, currentFrame.cols, CV_8UC3);
-    
-    // Loop until a keystroke is detected
-    while (waitKey(30) < 0) {
-        Mat inFrame;    // Used for reading from webcam
+    // Loop indefinately
+    while (true) {
+        // Shift frames over
+        if (!grayFrames[1].empty()) {
+            grayFrames[1].copyTo(grayFrames[0]);
+        }
+        if (!corners[1].empty()) {
+            swap(corners[1], corners[0]);
+        }
+        Mat frame;  // Current frame from webcam
+        webcam >> frame;
         
-        // Increment frames
-        previousFrame = currentFrame.clone();
-        grayPreviousFrame = grayCurrentFrame.clone();
-        webcam.read(inFrame);
-        flip(inFrame, currentFrame, 1);
-        cvtColor(currentFrame, grayCurrentFrame, COLOR_BGR2GRAY);
+        cvtColor(frame, grayFrames[1], COLOR_BGR2GRAY);
         
-        // Find the new location of the initial corners by calling calcOpticalFlowPyrLK
-        vector<Point2f> currentCorners;    // Corners which calcOpticalFlowPyrLK finds
-        vector<uchar> status;   // Which features a flow has been found for
-        Mat err;    //  Errors of features
-        Size winSize(200, 200);   // Search window size at each level
-        int maxLevel = 2;   // Maximum pyramid levels to use
-        TermCriteria criteria(TermCriteria::EPS | TermCriteria::COUNT, 10, 0.03);   // Criteria for search termination
-        calcOpticalFlowPyrLK(previousFrame, currentFrame, corners, currentCorners, status, err, winSize, maxLevel, criteria);
+        // If necessary, read another frame
+        if (grayFrames[0].empty()) {
+            grayFrames[1].copyTo(grayFrames[0]);
+            webcam >> frame;
+            cvtColor(frame, grayFrames[1], COLOR_BGR2GRAY);
+        }
         
-        // Draw the difference between the two sets of locations of corners
-        for (unsigned int i = 0; i < currentCorners.size(); i++) {
-            // If the feature was found, draw the line in red and a circle indicating the current location of said feature
-            if (status[i] != 0  ) {
-                line(lineMask, corners[i], currentCorners[i], Scalar(0, 0, 255));
-                circle(currentFrame, currentCorners[i], 5, Scalar(0, 0, 255));
+        // Find corners if necessary
+        if (findCorners) {
+            // Delete old corners
+            corners[0].clear();
+            corners[1].clear();
+            
+            // Shi-Tomasi Corner Detection
+            goodFeaturesToTrack(grayFrames[1], corners[1], 200, 0.01, 7, Mat());
+            
+            // No longer need to find corners
+            findCorners = false;
+        }
+        
+        // Track motion if corners have been found
+        if (!corners[0].empty()) {
+            vector<uchar> status;   // Contains whether each corner was found in next frame
+            Mat err;    // Contains error values for each corner's flow
+            // Lucas-Kanade Pyramidal
+            calcOpticalFlowPyrLK(grayFrames[0], grayFrames[1], corners[0], corners[1], status, err);
+            
+            // Draw the corners
+            for (int i = 0; i < corners[1].size(); i++) {
+                // Proceed if the corner was found on the new frame
+                if (status[i]) {
+                    circle(frame, corners[1][i], 2, Scalar(0, 0, 255 ), -1, CV_AA );
+                }
             }
         }
         
-        // Draw the mask onto the frame
-        Mat outputFrame;
-        add(currentFrame, lineMask, outputFrame);
-    
-        // Show the current frame
-        imshow("Webcam", outputFrame);
+        // Display the frame
+        imshow("Motion tracking", frame);
+        
+        // Keystroke handling
+        char keyStroke = (char)waitKey(10);
+        if (keyStroke == 'q') {
+            break;
+        }
+        else if (keyStroke == ' ') {
+            findCorners = true;
+        }
     }
     
-    // Release the camera
+    // Close webcam
     webcam.release();
     
-    // Finished without error
+    // Program completed successfully
     return 0;
 }
