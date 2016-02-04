@@ -37,7 +37,6 @@ int main() {
         }
         Mat frame;  // Current frame from webcam
         webcam >> frame;
-        
         cvtColor(frame, grayFrames[1], COLOR_BGR2GRAY);
         
         // If necessary, read another frame
@@ -45,6 +44,12 @@ int main() {
             grayFrames[1].copyTo(grayFrames[0]);
             webcam >> frame;
             cvtColor(frame, grayFrames[1], COLOR_BGR2GRAY);
+        }
+        
+        // Erase lines if necessary
+        if (!drawLines && !lines.empty()) {
+            frame.copyTo(lines);
+            lines = Scalar(0, 0, 0, 0);
         }
         
         // Find corners if necessary
@@ -66,9 +71,9 @@ int main() {
         
         // Track motion if corners have been found
         if (!corners[0].empty()) {
-            vector<uchar> status;   // Contains whether each corner was found in next frame
-            Mat err;    // Contains error values for each corner's flow
             // Lucas-Kanade Pyramidal
+            vector<uchar> status;   // Contains whether each corner was found in next frame
+            Mat err;                // Contains error values for each corner's flow
             calcOpticalFlowPyrLK(grayFrames[0], grayFrames[1], corners[0], corners[1], status, err);
             
             // Draw the corners and lines
@@ -86,7 +91,7 @@ int main() {
             }
         }
         
-        // Add the lines to the frame if necessary
+        // Add the lines to the frame to display if necessary
         if (drawLines && !lines.empty()) {
             Mat in;
             frame.copyTo(in);
@@ -101,13 +106,16 @@ int main() {
         
         // Keystroke handling
         char keyStroke = (char)waitKey(10);
+        // q quits program
         if (keyStroke == 'q') {
             break;
         }
         switch (keyStroke) {
+                // space finds new corners
                 case ' ':
                     findCorners = true;
                     break;
+                // l toggles line drawing
                 case 'l':
                     drawLines = !drawLines;
                     break;
