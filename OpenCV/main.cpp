@@ -26,8 +26,8 @@ int main() {
     Mat lines;                  // Where to draw the lines
     vector<Point2f> corners[2]; // Current(1) and previous(0) corners
     
-    // Loop indefinitely
-    while (true) {
+    // Loop until q is pressed
+    while ((char)waitKey(10) != 'q') {
         // Shift frames over
         if (!grayFrames[1].empty()) {
             grayFrames[1].copyTo(grayFrames[0]);
@@ -96,9 +96,6 @@ int main() {
             Mat in;
             frame.copyTo(in);
             add(in, lines, frame);
-            
-            // Debug
-            cout << "Drawing lines!" << endl;
         }
         
         // Display the frame
@@ -106,10 +103,6 @@ int main() {
         
         // Keystroke handling
         char keyStroke = (char)waitKey(10);
-        // q quits program
-        if (keyStroke == 'q') {
-            break;
-        }
         switch (keyStroke) {
                 // space finds new corners
                 case ' ':
